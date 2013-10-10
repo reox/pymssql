@@ -64,6 +64,8 @@ cdef int _mssql_last_msg_line = 0
 cdef char *_mssql_last_msg_str = <char *>PyMem_Malloc(PYMSSQL_MSGSIZE)
 cdef char *_mssql_last_msg_srv = <char *>PyMem_Malloc(PYMSSQL_MSGSIZE)
 cdef char *_mssql_last_msg_proc = <char *>PyMem_Malloc(PYMSSQL_MSGSIZE)
+cdef char *_mssql_last_dberr_str = <char *>PyMem_Malloc(PYMSSQL_MSGSIZE)
+cdef char *_mssql_last_oserr_str = <char *>PyMem_Malloc(PYMSSQL_MSGSIZE)
 IF PYMSSQL_DEBUG == 1:
     cdef int _row_count = 0
 
@@ -147,6 +149,12 @@ cdef class MSSQLDatabaseException(MSSQLException):
     cdef readonly char *text
     cdef readonly char *srvname
     cdef readonly char *procname
+    cdef readonly char *dberr_str
+    cdef readonly char *oserr_str
+
+    def __str__(self):
+        return 'DB: %r, OS: %r, tdscode: %d, tdsmsg: %r' \
+            % (self.dberr_str, self.oserr_str, self.number, self.text)
 
     property message:
 
@@ -189,6 +197,8 @@ cdef int err_handler(DBPROCESS *dbproc, int severity, int dberr, int oserr,
     cdef int *mssql_lastmsgno
     cdef int *mssql_lastmsgseverity
     cdef int *mssql_lastmsgstate
+    cdef char *mssql_lastdberrstr
+    cdef char *mssql_lastoserrstr
     cdef int _min_error_severity = min_error_severity
     cdef char mssql_message[PYMSSQL_MSGSIZE]
     cdef char error_type[16]
@@ -208,6 +218,8 @@ cdef int err_handler(DBPROCESS *dbproc, int severity, int dberr, int oserr,
     mssql_lastmsgno = &_mssql_last_msg_no
     mssql_lastmsgseverity = &_mssql_last_msg_severity
     mssql_lastmsgstate = &_mssql_last_msg_state
+    mssql_lastdberrstr = _mssql_last_dberr_str
+    mssql_lastoserrstr = _mssql_last_oserr_str
 
     for conn in connection_object_list:
         if dbproc != (<MSSQLConnection>conn).dbproc:
@@ -216,6 +228,8 @@ cdef int err_handler(DBPROCESS *dbproc, int severity, int dberr, int oserr,
         mssql_lastmsgno = &(<MSSQLConnection>conn).last_msg_no
         mssql_lastmsgseverity = &(<MSSQLConnection>conn).last_msg_severity
         mssql_lastmsgstate = &(<MSSQLConnection>conn).last_msg_state
+        mssql_lastdberrstr = (<MSSQLConnection>conn).last_dberr_str
+        mssql_lastoserrstr = (<MSSQLConnection>conn).last_oserr_str
         break
 
     if severity > mssql_lastmsgseverity[0]:
@@ -232,8 +246,10 @@ cdef int err_handler(DBPROCESS *dbproc, int severity, int dberr, int oserr,
         else:
             strcpy(error_type, 'Operating System')
         sprintf(mssql_message, '%s error during %s', error_type, oserrstr)
+        strncpy(mssql_lastoserrstr, oserrstr, PYMSSQL_MSGSIZE)
 
     strncpy(mssql_lastmsgstr, mssql_message, PYMSSQL_MSGSIZE)
+    strncpy(mssql_lastdberrstr, dberrstr, PYMSSQL_MSGSIZE)
 
     return INT_CANCEL
 
@@ -437,6 +453,10 @@ cdef class MSSQLConnection:
         self.last_msg_srv[0] = <char>0
         self.last_msg_proc = <char *>PyMem_Malloc(PYMSSQL_MSGSIZE)
         self.last_msg_proc[0] = <char>0
+        self.last_dberr_str = <char *>PyMem_Malloc(PYMSSQL_MSGSIZE)
+        self.last_dberr_str[0] = <char>0
+        self.last_oserr_str = <char *>PyMem_Malloc(PYMSSQL_MSGSIZE)
+        self.last_oserr_str[0] = <char>0
         self.column_names = None
         self.column_types = None
 
@@ -607,6 +627,8 @@ cdef class MSSQLConnection:
             self.dbproc = NULL
 
         self._connected = 0
+        PyMem_Free(self.last_oserr_str)
+        PyMem_Free(self.last_dberr_str)
         PyMem_Free(self.last_msg_proc)
         PyMem_Free(self.last_msg_srv)
         PyMem_Free(self.last_msg_str)
@@ -1435,6 +1457,12 @@ cdef int get_last_msg_state(MSSQLConnection conn):
 cdef int get_last_msg_line(MSSQLConnection conn):
     return conn.last_msg_line if conn != None else _mssql_last_msg_line
 
+cdef char *get_last_dberr_str(MSSQLConnection conn):
+    return conn.last_dberr_str if conn != None else _mssql_last_dberr_str
+
+cdef char *get_last_oserr_str(MSSQLConnection conn):
+    return conn.last_oserr_str if conn != None else _mssql_last_oserr_str
+
 cdef int maybe_raise_MSSQLDatabaseException(MSSQLConnection conn) except 1:
 
     if get_last_msg_severity(conn) < min_error_severity:
@@ -1446,6 +1474,8 @@ cdef int maybe_raise_MSSQLDatabaseException(MSSQLConnection conn) except 1:
 
     ex = MSSQLDatabaseException((get_last_msg_no(conn), error_msg))
     (<MSSQLDatabaseException>ex).text = error_msg
+    (<MSSQLDatabaseException>ex).dberr_str = get_last_dberr_str(conn)
+    (<MSSQLDatabaseException>ex).oserr_str = get_last_oserr_str(conn)
     (<MSSQLDatabaseException>ex).srvname = get_last_msg_srv(conn)
     (<MSSQLDatabaseException>ex).procname = get_last_msg_proc(conn)
     (<MSSQLDatabaseException>ex).number = get_last_msg_no(conn)
