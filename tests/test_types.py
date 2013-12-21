@@ -5,6 +5,7 @@ from decimal import Decimal as D
 from hashlib import md5
 import pickle
 import sys
+import unittest
 
 def get_bytes_buffer():
     try:
@@ -39,7 +40,7 @@ CREATE TABLE pymssql (
 )
 """
 
-class TestTypes(object):
+class TestTypes(unittest.TestCase):
     tname = 'pymssql'
 
     @classmethod

@@ -1,5 +1,6 @@
 import decimal
 import datetime
+import unittest
 
 from nose.plugins.skip import SkipTest
 
@@ -25,7 +26,7 @@ VARIABLE_TYPES = (
     ('Text', None)  # Leave this one in the last position in case it fails (see https://code.google.com/p/pymssql/issues/detail?id=113#c2)
 )
 
-class TestFixedTypeConversion(object):
+class TestFixedTypeConversion(unittest.TestCase):
 
     def setUp(self):
         self.mssql = mssqlconn()
@@ -177,7 +178,7 @@ class TestFixedTypeConversion(object):
         proc.execute()
         eq_(input, proc.parameters['@otinyint'])
 
-class TestCallProcFancy(object):
+class TestCallProcFancy(unittest.TestCase):
     # "Fancy" because we test some exotic cases like passing None or Unicode
     # strings to a called procedure
 
@@ -316,7 +317,7 @@ class TestCallProcFancy(object):
         eq_(b, u'\u0417\u0434\u0440\u0430\u0432\u0441\u0442\u0432\u0443\u0439 \u0417\u0434\u0440\u0430\u0432\u0441\u0442\u0432\u0443\u0439 \u041c\u0438\u0440')
 
 
-class TestStringTypeConversion(object):
+class TestStringTypeConversion(unittest.TestCase):
 
     def setUp(self):
         self.mssql = mssqlconn()
