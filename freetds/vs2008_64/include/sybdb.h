@@ -1,6 +1,6 @@
 /* FreeTDS - Library of routines accessing Sybase and Microsoft databases
  * Copyright (C) 1998, 1999, 2000, 2001, 2002, 2003, 2004  Brian Bruns
- * Copyright (C) 2010  Frediano Ziglio
+ * Copyright (C) 2010, 2011  Frediano Ziglio
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -42,7 +42,7 @@ extern "C"
 #define TDS_STATIC_CAST(type, a) ((type)(a))
 #endif
 
-static const char rcsid_sybdb_h[] = "$Id: sybdb.h,v 1.100.2.1 2011-06-06 12:31:45 freddy77 Exp $";
+static const char rcsid_sybdb_h[] = "$Id: sybdb.h,v 1.106 2011-12-05 02:26:31 jklowden Exp $";
 static const void *const no_unused_sybdb_h_warn[] = { rcsid_sybdb_h, no_unused_sybdb_h_warn };
 
 #ifdef FALSE
@@ -77,6 +77,7 @@ static const void *const no_unused_sybdb_h_warn[] = { rcsid_sybdb_h, no_unused_s
 #define DBVERSION_71      5
 #define DBVERSION_80      DBVERSION_71
 #define DBVERSION_72      6
+#define DBVERSION_73      7
 
 /* these two are defined by Microsoft for dbsetlversion() */
 #define DBVER42 	  DBVERSION_42
@@ -99,6 +100,7 @@ static const void *const no_unused_sybdb_h_warn[] = { rcsid_sybdb_h, no_unused_s
 #define DBTDS_9_0               10	/* Microsoft SQL Server 2005 */
 #define DBTDS_7_1               9	/* Microsoft SQL Server 2000 */
 #define DBTDS_7_2               10	/* Microsoft SQL Server 2005 */
+#define DBTDS_7_3               11	/* Microsoft SQL Server 2008 */
 
 #define DBTXPLEN 16
 
@@ -148,7 +150,7 @@ typedef int BOOL;
 #endif
 #endif
 
-#if !defined(_FREETDS_LIBRARY_SOURCE) || !defined(_tds_h_)
+#ifndef _tds_h_
 /* copied from tds.h */
 /* TODO find a best way... */
 enum
@@ -280,8 +282,8 @@ typedef struct
 
 typedef struct
 {
-	DBUSMALLINT days;	// days since Jan-1-1900
-	DBUSMALLINT minutes;	// minutes since midnight
+	DBUSMALLINT days;	/* days since Jan-1-1900 */
+	DBUSMALLINT minutes;	/* minutes since midnight */
 } DBDATETIME4;
 
 #ifdef MSDBLIB
@@ -615,10 +617,10 @@ RETCODE dbaltbind(DBPROCESS * dbprocess, int computeid, int column, int vartype,
 RETCODE dbaltbind_ps(DBPROCESS * dbprocess, int computeid, int column, int vartype, DBINT varlen, BYTE * varaddr,
 		     DBTYPEINFO * typeinfo);
 int dbaltcolid(DBPROCESS * dbproc, int computeid, int column);
-RETCODE dbaltlen(DBPROCESS * dbproc, int computeid, int column);
+DBINT dbaltlen(DBPROCESS * dbproc, int computeid, int column);
 int dbaltop(DBPROCESS * dbproc, int computeid, int column);
 int dbalttype(DBPROCESS * dbproc, int computeid, int column);
-RETCODE dbaltutype(DBPROCESS * dbproc, int computeid, int column);
+DBINT dbaltutype(DBPROCESS * dbproc, int computeid, int column);
 RETCODE dbanullbind(DBPROCESS * dbprocess, int computeid, int column, DBINT * indicator);
 RETCODE dbbind(DBPROCESS * dbproc, int column, int vartype, DBINT varlen, BYTE * varaddr);
 RETCODE dbbind_ps(DBPROCESS * dbprocess, int column, int vartype, DBINT varlen, BYTE * varaddr, DBTYPEINFO * typeinfo);
@@ -657,7 +659,7 @@ DBINT dbcurrow(DBPROCESS * dbproc);
 
 #define DBCURROW(x) dbcurrow((x))
 BYTE *dbdata(DBPROCESS * dbproc, int column);
-RETCODE dbdatecmp(DBPROCESS * dbproc, DBDATETIME * d1, DBDATETIME * d2);
+int dbdatecmp(DBPROCESS * dbproc, DBDATETIME * d1, DBDATETIME * d2);
 RETCODE dbdatecrack(DBPROCESS * dbproc, DBDATEREC * di, DBDATETIME * dt);
 DBINT dbdatlen(DBPROCESS * dbproc, int column);
 DBBOOL dbdead(DBPROCESS * dbproc);
@@ -724,7 +726,7 @@ RETCODE dbmorecmds(DBPROCESS * dbproc);
 RETCODE dbmoretext(DBPROCESS * dbproc, DBINT size, const BYTE text[]);
 MHANDLEFUNC dbmsghandle(MHANDLEFUNC handler);
 char *dbname(DBPROCESS * dbproc);
-RETCODE dbnextrow(DBPROCESS * dbproc);
+STATUS dbnextrow(DBPROCESS * dbproc);
 RETCODE dbnullbind(DBPROCESS * dbproc, int column, DBINT * indicator);
 int dbnumalts(DBPROCESS * dbproc, int computeid);
 int dbnumcols(DBPROCESS * dbproc);
@@ -732,6 +734,21 @@ int dbnumcompute(DBPROCESS * dbprocess);
 int dbnumrets(DBPROCESS * dbproc);
 DBPROCESS *tdsdbopen(LOGINREC * login, const char *server, int msdblib);
 DBPROCESS *dbopen(LOGINREC * login, const char *server);
+
+/* pivot functions */
+struct col_t;
+void dbpivot_count (struct col_t *output, const struct col_t *input);
+void dbpivot_sum (struct col_t *output, const struct col_t *input);
+void dbpivot_min (struct col_t *output, const struct col_t *input);
+void dbpivot_max (struct col_t *output, const struct col_t *input);
+
+struct pivot_t;
+typedef void (*DBPIVOT_FUNC)(struct col_t *output, const struct col_t *input);
+struct pivot_t * dbrows_pivoted(DBPROCESS *dbproc);
+STATUS dbnextrow_pivoted(DBPROCESS *dbproc, struct pivot_t *pp);
+RETCODE dbpivot(DBPROCESS *dbproc, int nkeys, int *keys, int ncols, int *cols, DBPIVOT_FUNC func, int val);
+
+DBPIVOT_FUNC dbpivot_lookup_name( const char name[] );
 
 #ifdef MSDBLIB
 #define   dbopen(x,y) tdsdbopen((x),(y), 1)
@@ -1172,9 +1189,9 @@ RETCODE dbsetlversion (LOGINREC * login, BYTE version);
 #define DBSETLVERSION(login, version) dbsetlversion((login), (version))
 
 RETCODE bcp_init(DBPROCESS * dbproc, const char *tblname, const char *hfile, const char *errfile, int direction);
-RETCODE bcp_done(DBPROCESS * dbproc);
+DBINT bcp_done(DBPROCESS * dbproc);
 
-RETCODE bcp_batch(DBPROCESS * dbproc);
+DBINT bcp_batch(DBPROCESS * dbproc);
 RETCODE bcp_bind(DBPROCESS * dbproc, BYTE * varaddr, int prefixlen, DBINT varlen, BYTE * terminator, int termlen, int type,
 		 int table_column);
 RETCODE bcp_collen(DBPROCESS * dbproc, DBINT varlen, int table_column);

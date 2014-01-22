@@ -259,7 +259,7 @@ class build_ext(_build_ext):
                 compiler = 'msvc'
                 freetds_dir = 'vs2008'
                 libraries = [
-                    'db-lib', 'tds',
+                    'db-lib', 'tds', 'replacements',
                     'ws2_32', 'wsock32', 'kernel32', 'shell32',
                 ]
 
